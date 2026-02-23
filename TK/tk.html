@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Quản Lý Thu Chi</title>
+<style>
+body{
+    font-family: 'Segoe UI', Arial, sans-serif;
+    padding: 0;
+    margin: 0;
+    min-height: 100vh;
+    background: #23272f;
+    color: #f5f5f7;
+}
+h2{
+    text-align:center;
+    margin-top: 32px;
+    font-size: 2.2rem;
+    letter-spacing: 1px;
+    color: #fff;
+    text-shadow: 0 2px 8px #0008;
+}
+h2#account-title {
+    color: #95afc0 !important;
+    text-shadow: 0 2px 8px #0008;
+    font-size: 1.3rem;
+    margin-top: 18px;
+    margin-bottom: 10px;
+}
+input,button{
+    width:100%;
+    padding:14px;
+    margin:8px 0;
+    font-size:17px;
+    border-radius: 10px;
+    border: none;
+    outline: none;
+    box-shadow: 0 2px 8px #0002;
+    background: #23272f;
+    color: #f5f5f7;
+    transition: box-shadow 0.2s, background 0.2s;
+}
+input{
+    background: #2d323c;
+    border: 1px solid #444;
+}
+button{
+    cursor: pointer;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    background: #444b5a;
+    color: #fff;
+    box-shadow: 0 2px 8px #0003;
+    transition: background 0.2s, color 0.2s;
+}
+button:active{
+    background: #33384a;
+}
+.history{
+    background: #23272f;
+    padding: 18px 18px 10px 18px;
+    margin-top: 18px;
+    border-radius: 16px;
+    box-shadow: 0 4px 24px #0005;
+}
+.item{
+    border-bottom:1px solid #333a;
+    padding:10px 0 8px 0;
+    font-size: 1.08rem;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.item:last-child{
+    border-bottom:none;
+}
+.total{
+    font-weight:bold;
+    margin-top:10px;
+    color: #b0b8c9;
+    font-size: 1.08rem;
+}
+.income{ color:#4fd18b; }
+.expense{ color:#ff5c5c; }
+.controls{ display:flex; gap:14px; margin-bottom: 8px; }
+.controls button{ width:48%; border-radius: 10px; font-size: 1.08rem; }
+.btn-income { background: #30336b !important; color: white !important; box-shadow: 0 2px 8px #30336b66; }
+.btn-expense { background: #535c68 !important; color: white !important; box-shadow: 0 2px 8px #535c6866; }
+#tab-day, #tab-month {
+    min-width: 100px;
+    font-size: 1rem;
+    font-weight: 500;
+    border-radius: 8px;
+    border: none;
+    background: #2d323c;
+    color: #b0b8c9;
+    margin-left: 4px;
+    margin-right: 0;
+    box-shadow: 0 1px 4px #0002;
+    transition: background 0.2s, color 0.2s;
+}
+#tab-day.active, #tab-month.active {
+    background: linear-gradient(90deg,#0056b3,#007bff);
+    color: #fff;
+}
+</style>
+</head>
+<body>
+
+<h2 id="account-title">Tài Khoản: 0 yên</h2>
+
+<!-- replace single save button with explicit Thu/Chi buttons -->
+<input type="number" id="amount" placeholder="Nhập số tiền (VD: 10000)">
+<div class="controls">
+    <button class="btn-income" onclick="addType('income')">Lưu Thu</button>
+    <button class="btn-expense" onclick="addType('expense')">Lưu Chi</button>
+</div>
+<div class="controls" style="margin-bottom:10px;">
+    <button onclick="showHistory('income')" class="btn-income">Lịch sử Thu</button>
+    <button onclick="showHistory('expense')" class="btn-expense">Lịch sử Chi</button>
+</div>
+
+<div class="history">
+    <div style="display:flex;align-items:center;gap:10px;">
+        <h3 style="margin:0;">Lịch sử:</h3>
+        <button id="tab-day" onclick="setHistoryView('day')">Theo ngày</button>
+        <button id="tab-month" onclick="setHistoryView('month')">Theo tháng</button>
+    </div>
+    <div id="list"></div>
+    <div class="total" id="total"></div>
+</div>
+
+<script>
+let transactions = JSON.parse(localStorage.getItem("transactions")) || [];
+let historyFilter = null; // null: all, 'income', 'expense'
+let historyView = 'day'; // 'day' or 'month'
+
+function saveData(){
+    localStorage.setItem("transactions", JSON.stringify(transactions));
+}
+
+function formatYen(num){
+    return num.toLocaleString('ja-JP') + " yên";
+}
+
+// new unified add function that accepts type ('income' or 'expense')
+function addType(type){
+    const raw = document.getElementById("amount").value;
+    const n = parseInt(raw);
+    if(isNaN(n) || n <= 0) return alert("Nhập số hợp lệ (số dương)!");
+
+    const amount = type === 'expense' ? -Math.abs(n) : Math.abs(n);
+    const percent = ((amount / 220000) * 100).toFixed(2);
+    const now = new Date();
+    const pad = x => x.toString().padStart(2, '0');
+    const dateStr = `${pad(now.getDate())}/${pad(now.getMonth()+1)}/${now.getFullYear().toString().slice(-2)}-${pad(now.getHours())}h${pad(now.getMinutes())}`;
+    // Lưu thêm thứ trong tuần (0=CN, 1=Mon...)
+    const weekday = now.getDay();
+    transactions.push({
+        amount: amount,
+        percent: percent,
+        type: type,
+        date: dateStr,
+        weekday: weekday
+    });
+
+    document.getElementById("amount").value="";
+    saveData();
+    render();
+}
+
+function showHistory(type) {
+    historyFilter = type;
+    render();
+}
+
+function setHistoryView(view) {
+    historyView = view;
+    // Đổi màu tab
+    document.getElementById('tab-day').classList.toggle('active', view==='day');
+    document.getElementById('tab-month').classList.toggle('active', view==='month');
+    render();
+}
+
+function render(){
+    const list = document.getElementById("list");
+    list.innerHTML="";
+    let sum = 0;
+    const weekdayKanji = ['日','月','火','水','木','金','土'];
+    let filtered = [...transactions].reverse();
+    if(historyFilter) {
+        filtered = filtered.filter(t => t.type === historyFilter);
+    }
+    if(historyView === 'day') {
+        filtered.forEach(t=>{
+            sum += t.amount;
+            const cls = t.amount >= 0 ? 'income' : 'expense';
+            const sign = t.amount >= 0 ? '+' : '-';
+            let dayKanji = '';
+            if(typeof t.weekday !== 'undefined') {
+                dayKanji = weekdayKanji[t.weekday];
+            } else {
+                const parts = t.date.split("-")[0].split("/");
+                const d = new Date(`20${parts[2]}`, parseInt(parts[1])-1, parseInt(parts[0]));
+                dayKanji = weekdayKanji[d.getDay()];
+            }
+            list.innerHTML += `
+                <div class="item ${cls}">
+                    ${sign}${formatYen(Math.abs(t.amount))} - (${t.date})${dayKanji}(${t.percent}%)
+                </div>
+            `;
+        });
+        // Ẩn phần tổng kết tháng khi ở tab ngày
+        document.getElementById("total").innerHTML = "";
+    } else if(historyView === 'month') {
+        // Gom nhóm theo tháng/năm
+        const monthMap = {};
+        filtered.forEach(t => {
+            // t.date: dd/mm/yy-hhHmm
+            const [day, mon, yy] = t.date.split("/");
+            const [year, hourmin] = yy.split("-");
+            const key = `${year}-${mon}`; // vd: 26-02
+            if(!monthMap[key]) monthMap[key] = 0;
+            monthMap[key] += t.amount;
+        });
+        // Sắp xếp theo tháng mới nhất trước
+        const keys = Object.keys(monthMap).sort((a,b)=>b.localeCompare(a));
+        keys.forEach(key => {
+            const [year, mon] = key.split("-");
+            const amount = monthMap[key];
+            const percent = ((amount / 220000) * 100).toFixed(2);
+            list.innerHTML += `<div class="item" style="font-weight:bold;">${amount>=0?'+':''}${formatYen(amount)} (${year}-${parseInt(mon)}月) (${percent}%)</div>`;
+        });
+        // Monthly summary cho 3 tháng gần nhất
+        const now = new Date();
+        let summary = "==============================<br>";
+        for(let i=0;i<3;i++){
+            const d = new Date(now.getFullYear(), now.getMonth()-i, 1);
+            const y = d.getFullYear();
+            const m = d.getMonth();
+            const monthSum = transactions.filter(t=>{
+                if(!t.date) return false;
+                if(historyFilter && t.type !== historyFilter) return false;
+                const [day, mon, yy] = t.date.split("/");
+                const [year, hourmin] = yy.split("-");
+                const fullYear = parseInt("20"+year);
+                return parseInt(mon)-1 === m && fullYear === y;
+            }).reduce((acc,t)=>acc+t.amount,0);
+            const percent = ((monthSum / 220000) * 100).toFixed(2);
+            summary += `${monthSum>=0?'+':''}${formatYen(monthSum)} (${d.getFullYear().toString().slice(-2)}-${d.getMonth()+1}月) (${percent}%)<br>`;
+        }
+        summary += "----------------------------------------------";
+        document.getElementById("total").innerHTML = summary;
+    }
+    // Cập nhật tiêu đề tài khoản với tổng số dư hiện tại (không lọc)
+    const totalSum = transactions.reduce((acc, t) => acc + t.amount, 0);
+    document.getElementById("account-title").innerText = `Tài Khoản: ${formatYen(totalSum)}`;
+}
+
+function clearHistory(){
+    if(confirm("Xóa toàn bộ lịch sử?")){
+        transactions = [];
+        saveData();
+        render();
+    }
+}
+
+// Khởi tạo tab mặc định
+setTimeout(()=>setHistoryView('day'), 0);
+
+render();
+</script>
+
+</body>
+</html>
